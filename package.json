@@ -1,0 +1,18 @@
+{
+  "name": "ccw_trainer_app",
+  "version": "1.0.0",
+  "description": "AI‑powered concealed carry training app",
+  "type": "module",
+  "scripts": {
+    "test": "jest"
+  },
+  "devDependencies": {
+    "jest": "^29.6.0",
+    "jsdom": "^22.1.0"
+  },
+  "jest": {
+    "testEnvironment": "jsdom",
+    "roots": ["<rootDir>/test"],
+    "moduleDirectories": ["node_modules", "js"]
+  }
+}

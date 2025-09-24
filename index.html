@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CCW Trainer App</title>
+  <link rel="stylesheet" href="style.css" />
+  <!-- Load TensorFlow.js and Pose Detection model from CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.14.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@3.0.0/dist/pose-detection.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1>CCW Trainer</h1>
+    <p class="subtitle">AI‑powered training for concealed carry qualification</p>
+  </header>
+  <main>
+    <div id="video-container">
+      <video id="video" autoplay playsinline></video>
+      <canvas id="overlay"></canvas>
+    </div>
+    <div id="controls">
+      <label for="module-select">Training module:</label>
+      <select id="module-select">
+        <option value="stance">Stance Training</option>
+        <option value="grip">Grip Training</option>
+        <option value="draw">Draw Training</option>
+        <option value="full">CCW Practice Test</option>
+      </select>
+      <button id="start-btn">Start Session</button>
+      <button id="stop-btn" disabled>Stop Session</button>
+      <p id="safety-msg">Always practice with an unloaded firearm or certified training replica.</p>
+      <div id="log"></div>
+    </div>
+  </main>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
