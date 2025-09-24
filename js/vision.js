@@ -24,35 +24,75 @@ export class VisionEngine {
    * Initialise webcam and load the MoveNet pose detector.
    */
   async init() {
-    // Wait for UMD global (loaded by <script> in index.html)
-    const pd = window.poseDetection;
-    if (!pd) {
-      throw new Error('poseDetection library not loaded. Check <script> tags in index.html.');
+    // Wait for libraries to be available
+    if (!window.tf) {
+      throw new Error('TensorFlow.js not loaded. Check script tags in index.html.');
+    }
+    
+    if (!window.poseDetection) {
+      throw new Error('poseDetection library not loaded. Check script tags in index.html.');
     }
 
+    console.log('Initializing pose detection...');
+    
     // Request camera access (try environment then user as a fallback for iOS)
     try {
       this.stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' } },
+        video: { 
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 640 },
+          height: { ideal: 480 }
+        },
         audio: false
       });
-    } catch {
-      this.stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user' },
-        audio: false
-      });
+    } catch (err) {
+      console.log('Environment camera not available, trying user camera:', err.message);
+      try {
+        this.stream = await navigator.mediaDevices.getUserMedia({
+          video: { 
+            facingMode: 'user',
+            width: { ideal: 640 },
+            height: { ideal: 480 }
+          },
+          audio: false
+        });
+      } catch (err2) {
+        throw new Error('Camera access denied or not available: ' + err2.message);
+      }
     }
 
     this.videoEl.srcObject = this.stream;
+    
+    // Wait for video to be ready
+    await new Promise((resolve) => {
+      this.videoEl.onloadedmetadata = () => {
+        resolve();
+      };
+    });
+    
     await this.videoEl.play();
 
     // Resize canvas to match video
-    this.canvasEl.width = this.videoEl.videoWidth || this.videoEl.clientWidth;
-    this.canvasEl.height = this.videoEl.videoHeight || this.videoEl.clientHeight;
+    this.canvasEl.width = this.videoEl.videoWidth || 640;
+    this.canvasEl.height = this.videoEl.videoHeight || 480;
 
-    // Create MoveNet detector via UMD API
-    const modelConfig = { modelType: pd.movenet.modelType.SINGLEPOSE_LIGHTNING };
-    this.detector = await pd.createDetector(pd.SupportedModels.MoveNet, modelConfig);
+    console.log('Video dimensions:', this.canvasEl.width, 'x', this.canvasEl.height);
+
+    // Create MoveNet detector
+    try {
+      const detectorConfig = {
+        modelType: window.poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING
+      };
+      
+      this.detector = await window.poseDetection.createDetector(
+        window.poseDetection.SupportedModels.MoveNet, 
+        detectorConfig
+      );
+      
+      console.log('Pose detector created successfully');
+    } catch (err) {
+      throw new Error('Failed to create pose detector: ' + err.message);
+    }
   }
 
   /**
@@ -64,19 +104,26 @@ export class VisionEngine {
 
     const loop = async () => {
       if (!this.running) return;
-      const poses = await this.detector.estimatePoses(this.videoEl, {
-        maxPoses: 1,
-        flipHorizontal: false
-      });
-      if (poses && poses[0]) {
-        const pose = poses[0];
-        // Extract metrics
-        const metrics = this.computeMetrics(pose);
-        // Draw overlay
-        this.drawPose(pose, metrics);
-        // Invoke callback
-        this.onPose(pose, metrics);
+      
+      try {
+        const poses = await this.detector.estimatePoses(this.videoEl, {
+          maxPoses: 1,
+          flipHorizontal: false
+        });
+        
+        if (poses && poses[0]) {
+          const pose = poses[0];
+          // Extract metrics
+          const metrics = this.computeMetrics(pose);
+          // Draw overlay
+          this.drawPose(pose, metrics);
+          // Invoke callback
+          this.onPose(pose, metrics);
+        }
+      } catch (err) {
+        console.error('Error in pose detection loop:', err);
       }
+      
       requestAnimationFrame(loop);
     };
     loop();
@@ -103,7 +150,7 @@ export class VisionEngine {
     // Landmarks we need
     const keypoints = {};
     pose.keypoints.forEach((kp) => {
-      if (kp.score > 0.4) {
+      if (kp.score > 0.3) { // Lowered threshold for better detection
         keypoints[kp.name] = {
           x: kp.x / this.canvasEl.width,
           y: kp.y / this.canvasEl.height
@@ -121,7 +168,9 @@ export class VisionEngine {
     if (leftAnkle && rightAnkle && leftShoulder && rightShoulder) {
       const ankleDist = distance(leftAnkle, rightAnkle);
       const shoulderDist = distance(leftShoulder, rightShoulder);
-      stanceRatio = ankleDist / shoulderDist;
+      if (shoulderDist > 0) {
+        stanceRatio = ankleDist / shoulderDist;
+      }
     }
 
     // Two-hand grip detection: distance between wrists relative to shoulder width
@@ -132,7 +181,9 @@ export class VisionEngine {
       const wristDist = distance(leftWrist, rightWrist);
       const shoulderDist = distance(leftShoulder, rightShoulder);
       // If wrists are close (within ~0.35 of shoulder width), consider two-hand grip
-      gripTwoHand = wristDist < shoulderDist * 0.35;
+      if (shoulderDist > 0) {
+        gripTwoHand = wristDist < shoulderDist * 0.35;
+      }
     }
 
     // Draw metrics for draw detection: y positions of right wrist (dominant hand) and right hip
@@ -159,7 +210,7 @@ export class VisionEngine {
 
     // Draw keypoints
     pose.keypoints.forEach((kp) => {
-      if (kp.score > 0.4) {
+      if (kp.score > 0.3) {
         ctx.beginPath();
         ctx.arc(kp.x, kp.y, 4, 0, 2 * Math.PI);
         ctx.fill();
@@ -175,10 +226,11 @@ export class VisionEngine {
       ['left_shoulder', 'right_shoulder'], ['left_hip', 'right_hip'],
       ['left_shoulder', 'left_hip'], ['right_shoulder', 'right_hip'],
     ];
+    
     edges.forEach(([aName, bName]) => {
       const a = pose.keypoints.find((kp) => kp.name === aName);
       const b = pose.keypoints.find((kp) => kp.name === bName);
-      if (a && b && a.score > 0.4 && b.score > 0.4) {
+      if (a && b && a.score > 0.3 && b.score > 0.3) {
         ctx.beginPath();
         ctx.moveTo(a.x, a.y);
         ctx.lineTo(b.x, b.y);
@@ -192,8 +244,10 @@ export class VisionEngine {
       const rightAnkle = pose.keypoints.find((kp) => kp.name === 'right_ankle');
       const leftShoulder = pose.keypoints.find((kp) => kp.name === 'left_shoulder');
       const rightShoulder = pose.keypoints.find((kp) => kp.name === 'right_shoulder');
+      
       if (leftAnkle && rightAnkle && leftShoulder && rightShoulder) {
         ctx.strokeStyle = '#FFD700';
+        ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.moveTo(leftAnkle.x, leftAnkle.y);
         ctx.lineTo(rightAnkle.x, rightAnkle.y);
@@ -202,6 +256,7 @@ export class VisionEngine {
         ctx.moveTo(leftShoulder.x, leftShoulder.y);
         ctx.lineTo(rightShoulder.x, rightShoulder.y);
         ctx.stroke();
+        ctx.lineWidth = 2; // Reset line width
       }
     }
   }
