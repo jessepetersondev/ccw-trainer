@@ -5,13 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CCW Trainer App</title>
   <link rel="stylesheet" href="style.css" />
-  <!-- AI libraries (UMD builds so window.poseDetection is defined) -->
-  <!-- TensorFlow.js -->
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.14.0/dist/tf.min.js"></script>
-
-  <!-- Pose Detection UMD bundle (defines window.poseDetection) -->
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@0.0.7/dist/pose-detection.umd.js"></script>
-
 </head>
 <body>
   <header>
@@ -38,14 +31,15 @@
       <button id="stop-btn" disabled>Stop Session</button>
 
       <p id="safety-msg">
-        Always practice with an unloaded firearm or certified training replica. Keep your finger off the trigger until you are ready to shoot.
+        Always practice with an unloaded firearm or certified training replica.
+        Keep your finger off the trigger until you are ready to shoot.
       </p>
 
       <div id="log"></div>
     </div>
   </main>
 
-  <!-- App code (ES modules) -->
+  <!-- Only your app entry; model libs are imported inside vision.js as ESM -->
   <script type="module" src="js/main.js"></script>
 </body>
 </html>

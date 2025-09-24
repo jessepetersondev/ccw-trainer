@@ -1,3 +1,12 @@
+// ESM imports for TFJS core, converter, and WebGL backend.
+// We import explicit ESM bundles via CDN so no bundler is required.
+import * as tf from 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.14.0/dist/tf-core.esm.js';
+import 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter@4.14.0/dist/tf-converter.esm.js';
+import 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.14.0/dist/tf-backend-webgl.esm.js';
+
+// Pose Detection ESM bundle (namespace import = posedetection)
+import * as posedetection from 'https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@3.1.0/dist/pose-detection.esm.js';
+
 import { distance } from './utils.js';
 
 /**
@@ -24,23 +33,29 @@ export class VisionEngine {
    * Initialise webcam and load the MoveNet pose detector.
    */
   async init() {
+    // Ensure TFJS backend is ready
+    await tf.setBackend('webgl');
+    await tf.ready();
+
     // Request camera access
-    this.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+    this.stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment' },
+      audio: false
+    });
     this.videoEl.srcObject = this.stream;
     await this.videoEl.play();
+
     // Resize canvas to match video
-    this.canvasEl.width = this.videoEl.videoWidth;
-    this.canvasEl.height = this.videoEl.videoHeight;
+    this.canvasEl.width = this.videoEl.videoWidth || this.videoEl.clientWidth;
+    this.canvasEl.height = this.videoEl.videoHeight || this.videoEl.clientHeight;
 
-    // ***** IMPORTANT: access the poseDetection object from window (module scope fix) *****
-    const pd = window.poseDetection;
-    if (!pd) {
-      throw new Error('poseDetection library not loaded. Check <script> tags in index.html.');
-    }
-
-    // Load MoveNet model
-    const modelConfig = { modelType: pd.movenet.modelType.SINGLEPOSE_LIGHTNING };
-    this.detector = await pd.createDetector(pd.SupportedModels.MoveNet, modelConfig);
+    // Create MoveNet detector via the pose-detection ESM API
+    // Docs: createDetector(SupportedModels.MoveNet, { modelType: movenet.modelType.SINGLEPOSE_LIGHTNING })
+    const modelConfig = { modelType: posedetection.movenet.modelType.SINGLEPOSE_LIGHTNING };
+    this.detector = await posedetection.createDetector(
+      posedetection.SupportedModels.MoveNet,
+      modelConfig
+    );
   }
 
   /**
@@ -49,9 +64,13 @@ export class VisionEngine {
   start() {
     if (!this.detector) throw new Error('Detector not initialised');
     this.running = true;
+
     const loop = async () => {
       if (!this.running) return;
-      const poses = await this.detector.estimatePoses(this.videoEl, { maxPoses: 1, flipHorizontal: false });
+      const poses = await this.detector.estimatePoses(this.videoEl, {
+        maxPoses: 1,
+        flipHorizontal: false
+      });
       if (poses && poses[0]) {
         const pose = poses[0];
         // Extract metrics
@@ -78,7 +97,7 @@ export class VisionEngine {
 
   /**
    * Compute stance width, shoulder width and grip type from pose.
-   * Returns an object { stanceRatio, gripTwoHand, hipY, wristY }.
+   * Returns an object { stanceRatio, gripTwoHand, wristY, hipY }.
    * All distances are normalised by torso size (distance between shoulders).
    *
    * @param {any} pose
@@ -88,20 +107,26 @@ export class VisionEngine {
     const keypoints = {};
     pose.keypoints.forEach((kp) => {
       if (kp.score > 0.4) {
-        keypoints[kp.name] = { x: kp.x / this.canvasEl.width, y: kp.y / this.canvasEl.height };
+        keypoints[kp.name] = {
+          x: kp.x / this.canvasEl.width,
+          y: kp.y / this.canvasEl.height
+        };
       }
     });
+
     // Stance ratio: distance between ankles / shoulder distance
     const leftAnkle = keypoints['left_ankle'];
     const rightAnkle = keypoints['right_ankle'];
     const leftShoulder = keypoints['left_shoulder'];
     const rightShoulder = keypoints['right_shoulder'];
+
     let stanceRatio = null;
     if (leftAnkle && rightAnkle && leftShoulder && rightShoulder) {
       const ankleDist = distance(leftAnkle, rightAnkle);
       const shoulderDist = distance(leftShoulder, rightShoulder);
       stanceRatio = ankleDist / shoulderDist;
     }
+
     // Two-hand grip detection: distance between wrists relative to shoulder width
     const leftWrist = keypoints['left_wrist'];
     const rightWrist = keypoints['right_wrist'];
@@ -112,12 +137,14 @@ export class VisionEngine {
       // If wrists are close (within ~0.35 of shoulder width), consider two-hand grip
       gripTwoHand = wristDist < shoulderDist * 0.35;
     }
+
     // Draw metrics for draw detection: y positions of right wrist (dominant hand) and right hip
     let wristY = null;
     let hipY = null;
     if (rightWrist) wristY = rightWrist.y;
     const rightHip = keypoints['right_hip'];
     if (rightHip) hipY = rightHip.y;
+
     return { stanceRatio, gripTwoHand, wristY, hipY };
   }
 
@@ -132,6 +159,7 @@ export class VisionEngine {
     ctx.lineWidth = 2;
     ctx.strokeStyle = '#00FF00';
     ctx.fillStyle = '#FF0000';
+
     // Draw keypoints
     pose.keypoints.forEach((kp) => {
       if (kp.score > 0.4) {
@@ -140,6 +168,7 @@ export class VisionEngine {
         ctx.fill();
       }
     });
+
     // Draw connecting lines (skeleton) using predefined edges
     const edges = [
       ['left_hip', 'left_knee'], ['left_knee', 'left_ankle'],
@@ -159,6 +188,7 @@ export class VisionEngine {
         ctx.stroke();
       }
     });
+
     // Draw stance lines if available
     if (metrics.stanceRatio !== null) {
       const leftAnkle = pose.keypoints.find((kp) => kp.name === 'left_ankle');
