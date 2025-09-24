@@ -6,8 +6,12 @@
   <title>CCW Trainer App</title>
   <link rel="stylesheet" href="style.css" />
   <!-- AI libraries (UMD builds so window.poseDetection is defined) -->
+  <!-- TensorFlow.js -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.14.0/dist/tf.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection"></script>
+
+  <!-- Pose Detection UMD bundle (defines window.poseDetection) -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@0.0.7/dist/pose-detection.umd.js"></script>
+
 </head>
 <body>
   <header>
