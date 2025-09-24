@@ -31,9 +31,16 @@ export class VisionEngine {
     // Resize canvas to match video
     this.canvasEl.width = this.videoEl.videoWidth;
     this.canvasEl.height = this.videoEl.videoHeight;
+
+    // ***** IMPORTANT: access the poseDetection object from window (module scope fix) *****
+    const pd = window.poseDetection;
+    if (!pd) {
+      throw new Error('poseDetection library not loaded. Check <script> tags in index.html.');
+    }
+
     // Load MoveNet model
-    const modelConfig = { modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING };
-    this.detector = await poseDetection.createDetector(poseDetection.SupportedModels.MoveNet, modelConfig);
+    const modelConfig = { modelType: pd.movenet.modelType.SINGLEPOSE_LIGHTNING };
+    this.detector = await pd.createDetector(pd.SupportedModels.MoveNet, modelConfig);
   }
 
   /**
@@ -71,7 +78,7 @@ export class VisionEngine {
 
   /**
    * Compute stance width, shoulder width and grip type from pose.
-   * Returns an object { stanceRatio, twoHandGrip, hipY, wristY }.
+   * Returns an object { stanceRatio, gripTwoHand, hipY, wristY }.
    * All distances are normalised by torso size (distance between shoulders).
    *
    * @param {any} pose
