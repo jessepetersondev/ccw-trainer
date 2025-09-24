@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CCW Trainer App</title>
   <link rel="stylesheet" href="style.css" />
+  <!-- TFJS & Pose Detection (UMD) from unpkg so window.poseDetection is defined -->
+  <script src="https://unpkg.com/@tensorflow/tfjs@4.14.0/dist/tf.min.js"></script>
+  <script src="https://unpkg.com/@tensorflow-models/pose-detection@3.1.0/dist/pose-detection.umd.js"></script>
 </head>
 <body>
   <header>
@@ -39,7 +42,7 @@
     </div>
   </main>
 
-  <!-- Only your app entry; model libs are imported inside vision.js as ESM -->
+  <!-- App code (ES modules) -->
   <script type="module" src="js/main.js"></script>
 </body>
 </html>

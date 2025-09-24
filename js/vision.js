@@ -1,12 +1,3 @@
-// ESM imports for TFJS core, converter, and WebGL backend.
-// We import explicit ESM bundles via CDN so no bundler is required.
-import * as tf from 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.14.0/dist/tf-core.esm.js';
-import 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter@4.14.0/dist/tf-converter.esm.js';
-import 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.14.0/dist/tf-backend-webgl.esm.js';
-
-// Pose Detection ESM bundle (namespace import = posedetection)
-import * as posedetection from 'https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@3.1.0/dist/pose-detection.esm.js';
-
 import { distance } from './utils.js';
 
 /**
@@ -33,15 +24,25 @@ export class VisionEngine {
    * Initialise webcam and load the MoveNet pose detector.
    */
   async init() {
-    // Ensure TFJS backend is ready
-    await tf.setBackend('webgl');
-    await tf.ready();
+    // Wait for UMD global (loaded by <script> in index.html)
+    const pd = window.poseDetection;
+    if (!pd) {
+      throw new Error('poseDetection library not loaded. Check <script> tags in index.html.');
+    }
 
-    // Request camera access
-    this.stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment' },
-      audio: false
-    });
+    // Request camera access (try environment then user as a fallback for iOS)
+    try {
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } },
+        audio: false
+      });
+    } catch {
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user' },
+        audio: false
+      });
+    }
+
     this.videoEl.srcObject = this.stream;
     await this.videoEl.play();
 
@@ -49,13 +50,9 @@ export class VisionEngine {
     this.canvasEl.width = this.videoEl.videoWidth || this.videoEl.clientWidth;
     this.canvasEl.height = this.videoEl.videoHeight || this.videoEl.clientHeight;
 
-    // Create MoveNet detector via the pose-detection ESM API
-    // Docs: createDetector(SupportedModels.MoveNet, { modelType: movenet.modelType.SINGLEPOSE_LIGHTNING })
-    const modelConfig = { modelType: posedetection.movenet.modelType.SINGLEPOSE_LIGHTNING };
-    this.detector = await posedetection.createDetector(
-      posedetection.SupportedModels.MoveNet,
-      modelConfig
-    );
+    // Create MoveNet detector via UMD API
+    const modelConfig = { modelType: pd.movenet.modelType.SINGLEPOSE_LIGHTNING };
+    this.detector = await pd.createDetector(pd.SupportedModels.MoveNet, modelConfig);
   }
 
   /**
