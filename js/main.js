@@ -12,38 +12,43 @@ const logEl = document.getElementById('log');
 let visionEngine;
 let trainingModule;
 
-async function setup() {
-  try {
-    logEl.textContent = 'Initializing camera and AI models...';
-    visionEngine = new VisionEngine(videoEl, canvasEl, () => {});
-    await visionEngine.init();
-    trainingModule = new TrainingModule(visionEngine, logEl);
-    logEl.textContent = 'Ready! Select a training module and click Start Session.';
-    startBtn.disabled = false;
-  } catch (error) {
-    console.error('Setup error:', error);
-    logEl.textContent = 'Setup failed: ' + error.message;
-    throw error;
-  }
+// Helper to log to UI + console
+function log(msg) {
+  console.log(msg);
+  const p = document.createElement('p');
+  p.textContent = msg;
+  logEl.appendChild(p);
+  logEl.scrollTop = logEl.scrollHeight;
 }
 
+async function setup() {
+  // Init only after user gesture (Start button)
+  if (!visionEngine) {
+    visionEngine = new VisionEngine(videoEl, canvasEl, () => {});
+  }
+  log('Initializing camera & pose model…');
+  await visionEngine.init(); // may throw if permission denied or camera unavailable
+  if (!trainingModule) {
+    trainingModule = new TrainingModule(visionEngine, logEl);
+  }
+  log('Ready! Select a module and begin.');
+}
+
+// Start on user gesture (required on iOS/Safari)
 startBtn.addEventListener('click', async () => {
+  startBtn.disabled = true;
+  stopBtn.disabled = false;
+  moduleSelect.disabled = true;
+
   try {
-    // Disable start button, enable stop
-    startBtn.disabled = true;
-    stopBtn.disabled = false;
-    moduleSelect.disabled = true;
-    
-    // Start training
+    await setup();
     const module = moduleSelect.value;
-    if (!visionEngine) {
-      await setup();
-    }
     trainingModule.start(module);
-  } catch (error) {
-    console.error('Start error:', error);
-    logEl.textContent = 'Failed to start session: ' + error.message;
-    // Re-enable controls
+    log('Session started.');
+  } catch (err) {
+    console.error('Setup error:', err);
+    log(`Setup error: ${err.message || err}`);
+    // Re-enable so user can try again
     startBtn.disabled = false;
     stopBtn.disabled = true;
     moduleSelect.disabled = false;
@@ -52,31 +57,15 @@ startBtn.addEventListener('click', async () => {
 
 stopBtn.addEventListener('click', () => {
   try {
+    trainingModule?.stop();
+  } finally {
     startBtn.disabled = false;
     stopBtn.disabled = true;
     moduleSelect.disabled = false;
-    if (trainingModule) {
-      trainingModule.stop();
-    }
-  } catch (error) {
-    console.error('Stop error:', error);
-    logEl.textContent = 'Error stopping session: ' + error.message;
   }
 });
 
-// Initialize when page loads
-window.addEventListener('load', async () => {
-  try {
-    // Disable start button initially
-    startBtn.disabled = true;
-    logEl.textContent = 'Loading...';
-    
-    // Wait a bit for libraries to be fully loaded
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    await setup();
-  } catch (err) {
-    console.error('Initialization error:', err);
-    logEl.textContent = 'Error initializing: ' + err.message + '. Please refresh the page.';
-  }
+// No auto camera access here — we wait for Start button
+window.addEventListener('load', () => {
+  log('Libraries loaded. Tap Start Session to begin.');
 });

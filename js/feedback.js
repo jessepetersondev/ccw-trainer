@@ -24,7 +24,7 @@ export function generateFeedback(metrics, module, drawTime = null) {
     if (metrics.gripTwoHand === false) {
       messages.push('Use both hands for better control and stability.');
     } else if (metrics.gripTwoHand === true) {
-      messages.push('Good two‑handed grip.');
+      messages.push('Good two-handed grip.');
     }
   }
   if (module === 'draw' || module === 'full') {
