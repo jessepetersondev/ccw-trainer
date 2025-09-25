@@ -1,5 +1,32 @@
 import { distance } from './utils.js';
 
+// Cache single-load of TFJS & pose-detection (ESM)
+let TF_READY = false;
+let posedetectionNS = null;
+
+/**
+ * Ensure TFJS (core, converter, webgl) and pose-detection ESM are loaded.
+ * Uses jsDelivr ESM endpoints that serve proper ES modules with CORS/MIME set correctly.
+ */
+async function ensureTfAndPoseDetection() {
+  if (TF_READY && posedetectionNS) return posedetectionNS;
+
+  // 1) TensorFlow.js pieces (ESM)
+  const tf = await import('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.14.0/dist/tf-core.esm.js');
+  await import('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter@4.14.0/dist/tf-converter.esm.js');
+  await import('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.14.0/dist/tf-backend-webgl.esm.js');
+
+  await tf.setBackend('webgl');
+  await tf.ready();
+  TF_READY = true;
+
+  // 2) Pose Detection ESM
+  // Note: the ESM bundle is "pose-detection.esm.js" in v3.x
+  posedetectionNS = await import('https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@3.1.0/dist/pose-detection.esm.js');
+
+  return posedetectionNS;
+}
+
 /**
  * VisionEngine encapsulates webcam capture, pose detection and metric extraction.
  */
@@ -67,14 +94,14 @@ export class VisionEngine {
    * Initialise webcam and load the MoveNet pose detector.
    */
   async init() {
-    if (!window.tf) throw new Error('TensorFlow.js not loaded. Check script tags in index.html.');
-    if (!window.poseDetection) throw new Error('poseDetection library not loaded. Check script tags in index.html.');
+    // Load TFJS & pose-detection as ES modules
+    const posedetection = await ensureTfAndPoseDetection();
 
     // Video element tweaks for mobile Safari autoplay
     this.videoEl.setAttribute('playsinline', '');
     this.videoEl.muted = true;
 
-    // Request camera stream with fallbacks
+    // Request camera stream with fallbacks (must be from a user gesture)
     try {
       this.stream = await this.getBestStream();
     } catch (err) {
@@ -93,10 +120,9 @@ export class VisionEngine {
     this.canvasEl.width = this.videoEl.videoWidth || 640;
     this.canvasEl.height = this.videoEl.videoHeight || 480;
 
-    // Create MoveNet detector (UMD namespace)
-    const pd = window.poseDetection;
-    const modelConfig = { modelType: pd.movenet.modelType.SINGLEPOSE_LIGHTNING };
-    this.detector = await pd.createDetector(pd.SupportedModels.MoveNet, modelConfig);
+    // Create MoveNet detector (ESM namespace)
+    const modelConfig = { modelType: posedetection.movenet.modelType.SINGLEPOSE_LIGHTNING };
+    this.detector = await posedetection.createDetector(posedetection.SupportedModels.MoveNet, modelConfig);
   }
 
   /**
@@ -205,7 +231,6 @@ export class VisionEngine {
       ['left_shoulder', 'right_shoulder'], ['left_hip', 'right_hip'],
       ['left_shoulder', 'left_hip'], ['right_shoulder', 'right_hip'],
     ];
-
     edges.forEach(([aName, bName]) => {
       const a = pose.keypoints.find((kp) => kp.name === aName);
       const b = pose.keypoints.find((kp) => kp.name === bName);
