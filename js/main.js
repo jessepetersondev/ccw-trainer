@@ -12,6 +12,10 @@ const logEl = document.getElementById('log');
 let visionEngine;
 let trainingModule;
 
+// CDN URLs we rely on
+const TFJS_URL = 'https://unpkg.com/@tensorflow/tfjs@4.14.0/dist/tf.min.js';
+const POSE_URL = 'https://unpkg.com/@tensorflow-models/pose-detection@3.1.0/dist/pose-detection.umd.js';
+
 // UI logger
 function log(msg) {
   console.log(msg);
@@ -21,10 +25,67 @@ function log(msg) {
   logEl.scrollTop = logEl.scrollHeight;
 }
 
+// Load a script tag only once and wait for a global check to pass
+function loadScriptOnce(src, checkFn, { timeoutMs = 15000 } = {}) {
+  return new Promise((resolve, reject) => {
+    // Already available?
+    try {
+      if (checkFn()) return resolve();
+    } catch (_) {}
+
+    // Already added?
+    const existing = Array.from(document.getElementsByTagName('script'))
+      .find(s => s.src === src);
+    if (existing) {
+      // Poll for readiness
+      const start = Date.now();
+      const poll = () => {
+        try {
+          if (checkFn()) return resolve();
+        } catch (_) {}
+        if (Date.now() - start > timeoutMs) {
+          return reject(new Error(`Timeout waiting for ${src}`));
+        }
+        setTimeout(poll, 100);
+      };
+      return poll();
+    }
+
+    // Create tag
+    const script = document.createElement('script');
+    script.src = src;
+    script.async = false; // preserve order
+    script.onload = () => {
+      // Verify the global is present
+      const start = Date.now();
+      const poll = () => {
+        try {
+          if (checkFn()) return resolve();
+        } catch (_) {}
+        if (Date.now() - start > timeoutMs) {
+          return reject(new Error(`Loaded ${src} but global not available`));
+        }
+        setTimeout(poll, 100);
+      };
+      poll();
+    };
+    script.onerror = () => reject(new Error(`Failed to load ${src}`));
+    document.head.appendChild(script);
+  });
+}
+
+// Ensure TFJS and Pose Detection are present (from head or load now)
+async function ensureLibraries() {
+  // Load TFJS first
+  await loadScriptOnce(TFJS_URL, () => !!window.tf);
+  // Then pose-detection (depends on tfjs)
+  await loadScriptOnce(POSE_URL, () => !!window.poseDetection);
+}
+
 async function setup() {
-  if (!window.tf || !window.poseDetection) {
-    throw new Error('poseDetection library not loaded. Check script tags in index.html.');
-  }
+  // Make sure libraries are really available (regardless of HTML order/caching/CDN lag)
+  await ensureLibraries();
+
   if (!visionEngine) {
     visionEngine = new VisionEngine(videoEl, canvasEl, () => {});
   }
