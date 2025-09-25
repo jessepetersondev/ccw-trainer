@@ -12,7 +12,7 @@ const logEl = document.getElementById('log');
 let visionEngine;
 let trainingModule;
 
-// Helper to log to UI + console
+// UI logger
 function log(msg) {
   console.log(msg);
   const p = document.createElement('p');
@@ -22,7 +22,6 @@ function log(msg) {
 }
 
 async function setup() {
-  // Init only after user gesture (Start button)
   if (!visionEngine) {
     visionEngine = new VisionEngine(videoEl, canvasEl, () => {});
   }

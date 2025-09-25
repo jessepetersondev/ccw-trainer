@@ -1,5 +1,31 @@
 import { distance } from './utils.js';
 
+// Cache modules so we only import once
+let TF_READY = null;
+let posedetectionNS = null;
+
+/**
+ * Dynamically import TFJS (core, converter, webgl) and pose-detection as ES modules.
+ * Uses esm.run CDN, which serves browser-friendly ES modules with dependencies resolved.
+ */
+async function ensureTfAndPoseDetection() {
+  if (TF_READY && posedetectionNS) return { tfReady: TF_READY, posedetection: posedetectionNS };
+
+  // Load TFJS pieces
+  const tf = await import('https://esm.run/@tensorflow/tfjs-core@4.14.0');
+  await import('https://esm.run/@tensorflow/tfjs-converter@4.14.0');
+  await import('https://esm.run/@tensorflow/tfjs-backend-webgl@4.14.0');
+
+  await tf.setBackend('webgl');
+  await tf.ready();
+  TF_READY = true;
+
+  // Load pose-detection model namespace
+  posedetectionNS = await import('https://esm.run/@tensorflow-models/pose-detection@3.1.0');
+
+  return { tfReady: TF_READY, posedetection: posedetectionNS };
+}
+
 /**
  * VisionEngine encapsulates webcam capture, pose detection and metric extraction.
  */
@@ -39,14 +65,14 @@ export class VisionEngine {
         video: { facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 480 } },
         audio: false
       });
-    } catch (e1) {
+    } catch {
       // 2) Fall back to front camera
       try {
         return await tryConstraint({
           video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
           audio: false
         });
-      } catch (e2) {
+      } catch {
         // 3) Enumerate devices (some browsers require deviceId)
         const devices = await navigator.mediaDevices.enumerateDevices();
         const cams = devices.filter(d => d.kind === 'videoinput');
@@ -54,7 +80,7 @@ export class VisionEngine {
           const back = cams.find(d => /back|rear|environment/i.test(d.label)) || cams[0];
           try {
             return await tryConstraint({ video: { deviceId: { exact: back.deviceId } }, audio: false });
-          } catch (e3) {
+          } catch {
             return await tryConstraint({ video: { deviceId: back.deviceId }, audio: false });
           }
         }
@@ -67,8 +93,8 @@ export class VisionEngine {
    * Initialise webcam and load the MoveNet pose detector.
    */
   async init() {
-    if (!window.tf) throw new Error('TensorFlow.js not loaded. Check script tags in index.html.');
-    if (!window.poseDetection) throw new Error('poseDetection library not loaded. Check script tags in index.html.');
+    // Load TFJS & model via ESM (no globals needed)
+    const { posedetection } = await ensureTfAndPoseDetection();
 
     // Video element tweaks for mobile Safari autoplay
     this.videoEl.setAttribute('playsinline', '');
@@ -82,20 +108,20 @@ export class VisionEngine {
     }
 
     this.videoEl.srcObject = this.stream;
+
+    // Wait for metadata to size canvas correctly
     await new Promise((res) => {
       if (this.videoEl.readyState >= 2) return res();
       this.videoEl.onloadedmetadata = () => res();
     });
     await this.videoEl.play();
 
-    // Match canvas to the actual frame size
     this.canvasEl.width = this.videoEl.videoWidth || 640;
     this.canvasEl.height = this.videoEl.videoHeight || 480;
 
-    // Build MoveNet detector (UMD API)
-    const pd = window.poseDetection;
-    const modelConfig = { modelType: pd.movenet.modelType.SINGLEPOSE_LIGHTNING };
-    this.detector = await pd.createDetector(pd.SupportedModels.MoveNet, modelConfig);
+    // Create MoveNet detector
+    const modelConfig = { modelType: posedetection.movenet.modelType.SINGLEPOSE_LIGHTNING };
+    this.detector = await posedetection.createDetector(posedetection.SupportedModels.MoveNet, modelConfig);
   }
 
   /**
