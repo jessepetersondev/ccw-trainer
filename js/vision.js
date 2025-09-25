@@ -1,31 +1,5 @@
 import { distance } from './utils.js';
 
-// Cache modules so we only import once
-let TF_READY = null;
-let posedetectionNS = null;
-
-/**
- * Dynamically import TFJS (core, converter, webgl) and pose-detection as ES modules.
- * Uses esm.run CDN, which serves browser-friendly ES modules with dependencies resolved.
- */
-async function ensureTfAndPoseDetection() {
-  if (TF_READY && posedetectionNS) return { tfReady: TF_READY, posedetection: posedetectionNS };
-
-  // Load TFJS pieces
-  const tf = await import('https://esm.run/@tensorflow/tfjs-core@4.14.0');
-  await import('https://esm.run/@tensorflow/tfjs-converter@4.14.0');
-  await import('https://esm.run/@tensorflow/tfjs-backend-webgl@4.14.0');
-
-  await tf.setBackend('webgl');
-  await tf.ready();
-  TF_READY = true;
-
-  // Load pose-detection model namespace
-  posedetectionNS = await import('https://esm.run/@tensorflow-models/pose-detection@3.1.0');
-
-  return { tfReady: TF_READY, posedetection: posedetectionNS };
-}
-
 /**
  * VisionEngine encapsulates webcam capture, pose detection and metric extraction.
  */
@@ -93,8 +67,8 @@ export class VisionEngine {
    * Initialise webcam and load the MoveNet pose detector.
    */
   async init() {
-    // Load TFJS & model via ESM (no globals needed)
-    const { posedetection } = await ensureTfAndPoseDetection();
+    if (!window.tf) throw new Error('TensorFlow.js not loaded. Check script tags in index.html.');
+    if (!window.poseDetection) throw new Error('poseDetection library not loaded. Check script tags in index.html.');
 
     // Video element tweaks for mobile Safari autoplay
     this.videoEl.setAttribute('playsinline', '');
@@ -119,9 +93,10 @@ export class VisionEngine {
     this.canvasEl.width = this.videoEl.videoWidth || 640;
     this.canvasEl.height = this.videoEl.videoHeight || 480;
 
-    // Create MoveNet detector
-    const modelConfig = { modelType: posedetection.movenet.modelType.SINGLEPOSE_LIGHTNING };
-    this.detector = await posedetection.createDetector(posedetection.SupportedModels.MoveNet, modelConfig);
+    // Create MoveNet detector (UMD namespace)
+    const pd = window.poseDetection;
+    const modelConfig = { modelType: pd.movenet.modelType.SINGLEPOSE_LIGHTNING };
+    this.detector = await pd.createDetector(pd.SupportedModels.MoveNet, modelConfig);
   }
 
   /**

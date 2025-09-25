@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CCW Trainer App</title>
   <link rel="stylesheet" href="./style.css" />
+
+  <!-- Load TFJS & Pose Detection (UMD) BEFORE your app so window.poseDetection exists -->
+  <script src="https://unpkg.com/@tensorflow/tfjs@4.14.0/dist/tf.min.js"></script>
+  <script src="https://unpkg.com/@tensorflow-models/pose-detection@3.1.0/dist/pose-detection.umd.js"></script>
 </head>
 <body>
   <header>
@@ -27,6 +31,7 @@
         <option value="full">CCW Practice Test</option>
       </select>
 
+      <!-- Start must be a user gesture before getUserMedia (iOS/Safari) -->
       <button id="start-btn">Start Session</button>
       <button id="stop-btn" disabled>Stop Session</button>
 
@@ -39,7 +44,7 @@
     </div>
   </main>
 
-  <!-- Only your app entry; TFJS & model are imported dynamically in vision.js -->
+  <!-- App entry (single, correct path under /js/) -->
   <script type="module" src="./js/main.js"></script>
 </body>
 </html>

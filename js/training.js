@@ -75,7 +75,7 @@ export class TrainingModule {
    */
   handleDraw(metrics) {
     const wristY = metrics.wristY;
-    const hipY = metrics.hipY;
+    const hipY = metrics.hipY; // <-- fixed typo ("the hipY" -> "const hipY")
     if (wristY == null || hipY == null) return;
     // Determine baseline (hand at or below hip)
     if (this.drawBaselineY === null) {

@@ -22,6 +22,9 @@ function log(msg) {
 }
 
 async function setup() {
+  if (!window.tf || !window.poseDetection) {
+    throw new Error('poseDetection library not loaded. Check script tags in index.html.');
+  }
   if (!visionEngine) {
     visionEngine = new VisionEngine(videoEl, canvasEl, () => {});
   }
